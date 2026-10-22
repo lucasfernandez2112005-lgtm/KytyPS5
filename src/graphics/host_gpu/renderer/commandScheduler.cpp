@@ -6,6 +6,7 @@
 #include "common/profiler.h"
 #include "common/timer.h"
 #include "graphics/guest_gpu/graphicsRun.h"
+#include "graphics/guest_gpu/hardwareContext.h"
 #include "graphics/host_gpu/graphicContext.h"
 #include "graphics/host_gpu/timeline.h"
 
@@ -48,6 +49,14 @@ uint32_t DrawFlushInterval() {
 		return static_cast<uint32_t>(std::strtoul(v, nullptr, 10));
 	}();
 	return interval;
+}
+
+bool DiagSyncEnabled() {
+	static const bool enabled = [] {
+		const char* v = std::getenv("KYTY_DIAG_SYNC");
+		return v != nullptr && v[0] != '\0' && v[0] != '0';
+	}();
+	return enabled;
 }
 
 } // namespace
@@ -220,7 +229,39 @@ void CommandScheduler::CompleteReleaseMemInterrupt() {
 	Flush();
 }
 
+void CommandScheduler::DiagSyncAfterCommand() {
+	if (!DiagSyncEnabled()) {
+		return;
+	}
+	CheckActive();
+	if (m_command.IsInvalid()) {
+		return;
+	}
+	uint64_t shader0 = 0;
+	uint64_t shader1 = 0;
+	if (m_command.m_shaders != nullptr) {
+		const auto op = static_cast<CommandBufferDebugOp>(m_command.m_debug_op);
+		if (op == CommandBufferDebugOp::DispatchDirect ||
+		    op == CommandBufferDebugOp::DispatchIndirect) {
+			shader0 = m_command.m_shaders->GetCs().cs_regs.data_addr;
+		} else if (op == CommandBufferDebugOp::DrawIndex ||
+		           op == CommandBufferDebugOp::DrawIndexAuto) {
+			const auto& vs = m_command.m_shaders->GetVs();
+			shader0        = vs.gs_regs.data_addr != 0 ? vs.gs_regs.data_addr : vs.es_regs.data_addr;
+			shader1        = m_command.m_shaders->GetPs().ps_regs.data_addr;
+		}
+	}
+	DiagRecordCommand(m_command.m_debug_op, m_command.m_debug_submit_id, m_command.m_debug_arg0,
+	                  m_command.m_debug_arg1, m_command.m_debug_arg2, m_command.m_debug_arg3,
+	                  m_command.m_debug_arg4, shader0, shader1);
+	FlushAndWait();
+}
+
 void CommandScheduler::CompleteDraw() {
+	if (DiagSyncEnabled()) {
+		DiagSyncAfterCommand();
+		return;
+	}
 	const auto interval = DrawFlushInterval();
 	if (interval == 0u || ++m_recorded_draws < interval) {
 		return;

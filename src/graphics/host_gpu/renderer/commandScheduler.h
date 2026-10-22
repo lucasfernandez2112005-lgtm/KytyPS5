@@ -58,6 +58,9 @@ public:
 	// too small reintroduces per-submit overhead, too large leaves the same idle bubbles this
 	// exists to remove.
 	void           CompleteDraw();
+	// KYTY_DIAG_SYNC=1 (diagnostics only, very slow): after every draw/dispatch, submits and waits
+	// for the GPU, so a device loss is reported against the command that caused it.
+	void           DiagSyncAfterCommand();
 	CommandBuffer& BeginCommand();
 	uint64_t       Submit(SubmitInfo submit = {});
 	// Deferred callbacks can observe an externally owned drain, but cannot initiate shutdown:

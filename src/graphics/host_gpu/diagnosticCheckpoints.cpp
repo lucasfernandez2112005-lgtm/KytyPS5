@@ -47,7 +47,50 @@ void Print(const char* stage, const DiagnosticCheckpoint& checkpoint) {
 	     checkpoint.shader1);
 }
 
+constexpr size_t DIAG_RING = 16;
+
+std::array<DiagnosticCheckpoint, DIAG_RING> g_diag_ring {};
+std::atomic<uint64_t>                       g_diag_count {0};
+
 } // namespace
+
+void DiagRecordCommand(uint32_t op, uint64_t submit_id, uint32_t arg0, uint32_t arg1, uint32_t arg2,
+                       uint32_t arg3, uint64_t arg4, uint64_t shader0, uint64_t shader1) {
+	const auto n = g_diag_count.fetch_add(1, std::memory_order_relaxed);
+	g_diag_ring[n % DIAG_RING] = {.op        = op,
+	                              .submit_id = submit_id,
+	                              .arg0      = arg0,
+	                              .arg1      = arg1,
+	                              .arg2      = arg2,
+	                              .arg3      = arg3,
+	                              .arg4      = arg4,
+	                              .shader0   = shader0,
+	                              .shader1   = shader1,
+	                              .sequence  = n + 1};
+}
+
+static void DumpDiagRing() {
+	const auto total = g_diag_count.load(std::memory_order_relaxed);
+	if (total == 0) {
+		return;
+	}
+	std::printf("--- DIAG_SYNC: last commands the host waited on (newest last; the LAST one is the "
+	            "prime suspect) ---\n");
+	LOGF("--- DIAG_SYNC: last commands the host waited on ---\n");
+	const uint64_t first = total > DIAG_RING ? total - DIAG_RING : 0;
+	for (uint64_t n = first; n < total; n++) {
+		const auto& c = g_diag_ring[n % DIAG_RING];
+		std::printf("  #%" PRIu64 " op=%s submit=%" PRIu64 " args=%u,%u,%u,%u,0x%016" PRIx64
+		            " shader0=0x%016" PRIx64 " shader1=0x%016" PRIx64 "\n",
+		            c.sequence, OpName(c.op), c.submit_id, c.arg0, c.arg1, c.arg2, c.arg3, c.arg4,
+		            c.shader0, c.shader1);
+		LOGF("  #%" PRIu64 " op=%s submit=%" PRIu64 " args=%u,%u,%u,%u,0x%016" PRIx64
+		     " shader0=0x%016" PRIx64 " shader1=0x%016" PRIx64 "\n",
+		     c.sequence, OpName(c.op), c.submit_id, c.arg0, c.arg1, c.arg2, c.arg3, c.arg4,
+		     c.shader0, c.shader1);
+	}
+	std::fflush(stdout);
+}
 
 const DiagnosticCheckpoint* RecordDiagnosticCheckpoint(const DiagnosticCheckpoint& checkpoint) {
 	const auto sequence = g_checkpoint_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -113,6 +156,7 @@ static void DumpDeviceFault(GraphicContext& graphics) {
 
 void DumpDeviceLossDiagnostics(GraphicContext& graphics) {
 	Aftermath::WaitForCrashDump();
+	DumpDiagRing();
 	DumpDeviceFault(graphics);
 	if (!graphics.diagnostic_checkpoints_enabled || graphics.queue == nullptr) {
 		return;

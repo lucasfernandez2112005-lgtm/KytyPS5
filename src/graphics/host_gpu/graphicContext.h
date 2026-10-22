@@ -42,6 +42,10 @@ RecordDiagnosticCheckpoint(const DiagnosticCheckpoint& checkpoint);
 // After a device loss: VK_EXT_device_fault info, the NVIDIA crash dump written to
 // _device_fault.nv-gpudmp, and the queue's last diagnostic checkpoints.
 void DumpDeviceLossDiagnostics(GraphicContext& graphics);
+// KYTY_DIAG_SYNC=1: remembers the command the host is about to wait on, so a device loss during
+// that wait names it (op, submit, args, shader addresses).
+void DiagRecordCommand(uint32_t op, uint64_t submit_id, uint32_t arg0, uint32_t arg1, uint32_t arg2,
+                       uint32_t arg3, uint64_t arg4, uint64_t shader0, uint64_t shader1);
 
 struct GraphicContext {
 	vk::Instance                       instance                              = nullptr;
