@@ -260,6 +260,7 @@ void CommandScheduler::DiagSyncAfterCommand() {
 		if (op == CommandBufferDebugOp::DispatchDirect ||
 		    op == CommandBufferDebugOp::DispatchIndirect) {
 			shader0 = m_command.m_shaders->GetCs().cs_regs.data_addr;
+			shader1 = m_command.m_debug_shader_hash; // the compute shader's hash
 		} else if (op == CommandBufferDebugOp::DrawIndex ||
 		           op == CommandBufferDebugOp::DrawIndexAuto) {
 			const auto& vs = m_command.m_shaders->GetVs();

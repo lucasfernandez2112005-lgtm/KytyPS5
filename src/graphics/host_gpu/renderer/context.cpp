@@ -73,6 +73,7 @@ void CommandBuffer::SetDebugInfo(uint32_t op, uint64_t submit_id, uint32_t arg0,
 	m_debug_arg2      = arg2;
 	m_debug_arg3      = arg3;
 	m_debug_arg4      = arg4;
+	m_debug_shader_hash = 0;
 	if (m_graphics.diagnostic_checkpoints_enabled && !IsInvalid()) {
 		uint64_t shader0 = 0;
 		uint64_t shader1 = 0;
