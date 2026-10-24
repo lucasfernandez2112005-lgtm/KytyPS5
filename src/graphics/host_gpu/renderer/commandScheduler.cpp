@@ -54,7 +54,16 @@ uint32_t DrawFlushInterval() {
 bool DiagSyncEnabled() {
 	static const bool enabled = [] {
 		const char* v = std::getenv("KYTY_DIAG_SYNC");
-		return v != nullptr && v[0] != '\0' && v[0] != '0';
+		if (v != nullptr && v[0] != '\0' && v[0] != '0') {
+			return true;
+		}
+		// Launchers may not pass environment variables on: an empty KYTY_DIAG_SYNC.txt in the
+		// working directory turns it on too.
+		if (std::FILE* file = std::fopen("KYTY_DIAG_SYNC.txt", "rb"); file != nullptr) {
+			std::fclose(file);
+			return true;
+		}
+		return false;
 	}();
 	return enabled;
 }
@@ -233,6 +242,13 @@ void CommandScheduler::DiagSyncAfterCommand() {
 	if (!DiagSyncEnabled()) {
 		return;
 	}
+	static const bool announced = [] {
+		std::printf("KYTY_DIAG_SYNC active: waiting on the GPU after every draw/dispatch\n");
+		LOGF("KYTY_DIAG_SYNC active: waiting on the GPU after every draw/dispatch\n");
+		std::fflush(stdout);
+		return true;
+	}();
+	(void)announced;
 	CheckActive();
 	if (m_command.IsInvalid()) {
 		return;
