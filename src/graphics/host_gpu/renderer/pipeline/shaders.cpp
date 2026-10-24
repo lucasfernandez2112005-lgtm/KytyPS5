@@ -22,6 +22,7 @@
 #include <atomic>
 #include <chrono>
 #include <cinttypes>
+#include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <memory>
@@ -666,6 +667,16 @@ vk::Result CreateGraphicsPipeline(const GraphicsPipelineBuild& build, vk::Pipeli
 		LOGF("PipelineTrace: slow graphics pipeline VS=0x%016" PRIx64 " PS=0x%016" PRIx64
 		     " ms=%lld\n",
 		     build.vs_hash, build.ps_hash, static_cast<long long>(create_ms));
+	}
+	if (result != vk::Result::eSuccess) {
+		// Always reported: the fatal error that follows does not say why the driver refused it.
+		LOGF("vkCreateGraphicsPipelines failed: %s (%d) VS=0x%016" PRIx64 " PS=0x%016" PRIx64 "\n",
+		     vk::to_string(result).c_str(), static_cast<int>(result), build.vs_hash, build.ps_hash);
+		std::printf("vkCreateGraphicsPipelines failed: %s (%d) VS=0x%016" PRIx64 " PS=0x%016" PRIx64
+		            "\n",
+		            vk::to_string(result).c_str(), static_cast<int>(result), build.vs_hash,
+		            build.ps_hash);
+		std::fflush(stdout);
 	}
 	if (graphics_debug_dump_enabled()) {
 		LOGF("PipelineTrace: vkCreateGraphicsPipelines done result=%s pipeline=%p\n",
